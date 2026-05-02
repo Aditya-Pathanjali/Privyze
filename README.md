@@ -1,4 +1,4 @@
-# 🛡️ Data Guardian — Real-Time Privacy + Carbon Tracker
+# 🛡️ Privyze — Real-Time Privacy + Carbon Tracker
 
 An interactive web application that reveals who's collecting your data in real-time, explains their behavior with AI, and shows the carbon impact of tracking.
 
