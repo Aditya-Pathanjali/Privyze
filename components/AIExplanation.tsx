@@ -39,6 +39,60 @@ function toneColor(domain: AggregatedDomain) {
   return 'border-blue-500/20 bg-blue-500/10 text-blue-400';
 }
 
+function getRiskLevel(domain: AggregatedDomain): { level: 'High' | 'Medium' | 'Low'; color: string; bgColor: string } {
+  if (['ads', 'tracker'].includes(domain.classification)) {
+    return { level: 'High', color: 'text-red-400', bgColor: 'bg-red-500/10 border-red-500/20' };
+  }
+  if (domain.classification === 'analytics') {
+    return { level: 'Medium', color: 'text-amber-400', bgColor: 'bg-amber-500/10 border-amber-500/20' };
+  }
+  return { level: 'Low', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10 border-emerald-500/20' };
+}
+
+function getConsequence(domain: AggregatedDomain): string {
+  if (domain.classification === 'tracker') {
+    return 'If not blocked, this tracker will continue to monitor your browsing behavior across multiple websites, building a detailed profile of your interests, habits, and online identity for targeted advertising.';
+  }
+  if (domain.classification === 'ads') {
+    return 'Without blocking, this advertising service will serve targeted ads based on your browsing history and personal data, potentially exposing sensitive information to third-party advertisers.';
+  }
+  if (domain.classification === 'analytics') {
+    return 'If left unblocked, this analytics service will collect detailed usage data including page views, click patterns, session duration, and device information, which may be shared with third parties.';
+  }
+  if (domain.isThirdParty) {
+    return 'This third-party service has access to your browsing context. While not classified as a tracker, it could potentially collect data about your visit.';
+  }
+  return 'This is a standard first-party resource. It is necessary for the website to function correctly and poses minimal privacy risk.';
+}
+
+function getWhatItIs(domain: AggregatedDomain): string {
+  if (domain.classification === 'tracker')
+    return `A tracking service embedded in this webpage that monitors user behavior.`;
+  if (domain.classification === 'ads')
+    return `An advertising network that serves targeted ads to visitors.`;
+  if (domain.classification === 'analytics')
+    return `An analytics platform that collects usage and behavioral data.`;
+  if (domain.classification === 'cdn')
+    return `A content delivery network that serves static assets like images and scripts.`;
+  if (domain.classification === 'api')
+    return `A functional API endpoint used by the website for features and data.`;
+  return `A web service contacted by the page during loading.`;
+}
+
+function getWhatItDoes(domain: AggregatedDomain): string {
+  if (domain.classification === 'tracker')
+    return `Monitors your browsing behavior across websites and builds a detailed advertising profile about your interests, demographics, and online habits.`;
+  if (domain.classification === 'ads')
+    return `Delivers personalized advertisements based on your browsing history, search queries, and behavioral patterns collected across the web.`;
+  if (domain.classification === 'analytics')
+    return `Records detailed metrics about how you interact with the page — including clicks, scroll depth, session duration, and navigation patterns.`;
+  if (domain.classification === 'cdn')
+    return `Delivers cached copies of website resources from servers geographically close to you for faster load times.`;
+  if (domain.classification === 'api')
+    return `Provides backend functionality to the website such as authentication, data fetching, or real-time updates.`;
+  return `Provides resources or services needed for the website to render and function correctly.`;
+}
+
 export default function AIExplanation({
   domain,
   accessibilityMode,
@@ -48,6 +102,11 @@ export default function AIExplanation({
   const [error, setError] = useState('');
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
+  const risk = getRiskLevel(domain);
+  const consequence = getConsequence(domain);
+  const whatItIs = getWhatItIs(domain);
+  const whatItDoes = getWhatItDoes(domain);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -143,9 +202,15 @@ export default function AIExplanation({
               {domain.domain}
             </h2>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${toneColor(domain)}`}>
-            {toneIcon(domain)} {toneLabel(domain)}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Risk badge */}
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${risk.bgColor} ${risk.color}`}>
+              {risk.level} Risk
+            </span>
+            <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${toneColor(domain)}`}>
+              {toneIcon(domain)} {toneLabel(domain)}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -185,8 +250,40 @@ export default function AIExplanation({
               exit={{ opacity: 0 }}
               className="space-y-4"
             >
+              {/* Structured explanation cards */}
+              <div className="space-y-2">
+                <ExplainCard
+                  label="What it is"
+                  icon="🔎"
+                  text={whatItIs}
+                  delay={0}
+                  accessibilityMode={accessibilityMode}
+                />
+                <ExplainCard
+                  label="What it does"
+                  icon="⚡"
+                  text={whatItDoes}
+                  delay={0.1}
+                  accessibilityMode={accessibilityMode}
+                />
+                <ExplainCard
+                  label="Why it matters"
+                  icon="🎯"
+                  text={consequence}
+                  delay={0.2}
+                  accessibilityMode={accessibilityMode}
+                  highlight={risk.level !== 'Low'}
+                />
+              </div>
+
               {/* AI response bubble */}
               <div className="rounded-xl border border-purple-500/10 bg-purple-500/[0.04] px-4 py-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[10px]">🧠</span>
+                  <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-widest">
+                    AI Analysis
+                  </span>
+                </div>
                 <p
                   className={`leading-7 text-slate-300 ${accessibilityMode ? 'text-base' : 'text-sm'
                     } ${isTyping ? 'typing-cursor' : ''}`}
@@ -241,5 +338,44 @@ export default function AIExplanation({
         </AnimatePresence>
       </div>
     </motion.section>
+  );
+}
+
+function ExplainCard({
+  label,
+  icon,
+  text,
+  delay,
+  accessibilityMode,
+  highlight = false,
+}: {
+  label: string;
+  icon: string;
+  text: string;
+  delay: number;
+  accessibilityMode: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay, duration: 0.3 }}
+      className={`rounded-xl border px-4 py-3 ${
+        highlight
+          ? 'border-red-500/10 bg-red-500/[0.03]'
+          : 'border-white/[0.04] bg-white/[0.02]'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-xs">{icon}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          {label}
+        </span>
+      </div>
+      <p className={`leading-6 text-slate-400 ${accessibilityMode ? 'text-sm' : 'text-xs'}`}>
+        {text}
+      </p>
+    </motion.div>
   );
 }

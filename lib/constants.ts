@@ -137,8 +137,9 @@ export const UI_COLORS = {
 };
 
 export const DEMO_SITES = [
-  { url: 'https://www.bbc.com', name: 'BBC News' },
-  { url: 'https://www.medium.com', name: 'Medium' },
-  { url: 'https://www.github.com', name: 'GitHub' },
-  { url: 'https://www.wikipedia.org', name: 'Wikipedia' },
+  { url: 'https://www.bbc.com', name: '📰 News Site', category: 'news' as const },
+  { url: 'https://www.cnn.com', name: '🔴 Heavy Tracking', category: 'heavy' as const },
+  { url: 'https://www.wikipedia.org', name: '🟢 Clean Site', category: 'clean' as const },
+  { url: 'https://www.medium.com', name: '📝 Medium', category: 'news' as const },
+  { url: 'https://www.github.com', name: '💻 GitHub', category: 'clean' as const },
 ];

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEMO_SITES } from '@/lib/constants';
+import { NetworkService } from '@/lib/services/network';
 
 interface CommandBarProps {
   onSubmit: (url: string) => void;
@@ -29,22 +30,13 @@ export default function CommandBar({
     event.preventDefault();
     setError('');
 
-    let nextUrl = input.trim();
-    if (!nextUrl) {
-      setError('Enter a website URL to analyze.');
+    const validation = NetworkService.normalizeHttpUrl(input);
+    if (!validation.url) {
+      setError(validation.error || 'That URL does not look valid.');
       return;
     }
 
-    if (!nextUrl.startsWith('http://') && !nextUrl.startsWith('https://')) {
-      nextUrl = `https://${nextUrl}`;
-    }
-
-    try {
-      new URL(nextUrl);
-      onSubmit(nextUrl);
-    } catch {
-      setError('That URL does not look valid.');
-    }
+    onSubmit(validation.url);
   };
 
   return (

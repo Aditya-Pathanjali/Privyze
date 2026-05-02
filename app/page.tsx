@@ -14,6 +14,31 @@ import CarbonMeter from '@/components/CarbonMeter';
 import ControlsPanel from '@/components/ControlsPanel';
 import { useBrowserPod } from '@/hooks/useBrowserPod';
 import { useNetworkTracking } from '@/hooks/useNetworkTracking';
+import { usePrivacyScore } from '@/hooks/usePrivacyScore';
+import { useAnalysisHistory } from '@/hooks/useAnalysisHistory';
+import { CarbonService } from '@/lib/services/carbon';
+
+import InsightAlerts from '@/components/InsightAlerts';
+import HeadlineInsight from '@/components/HeadlineInsight';
+import ComparisonPanel from '@/components/ComparisonPanel';
+import PrivacyScore from '@/components/PrivacyScore';
+import RequestTimeline from '@/components/RequestTimeline';
+import HistoryPanel from '@/components/HistoryPanel';
+import { AggregatedDomain, NetworkRequest } from '@/lib/types';
+
+interface AnalysisDisplaySnapshot {
+  sessionId: string;
+  domains: AggregatedDomain[];
+  requests: NetworkRequest[];
+  blockedRequests: NetworkRequest[];
+  healthAlert: boolean;
+  mode: 'live' | 'mock' | null;
+  title: string;
+  blockedCount: number;
+  blockedDomains: string[];
+  previewImage: string;
+  error: string;
+}
 
 function setsMatch(left: Set<string>, right: Set<string>) {
   if (left.size !== right.size) return false;
@@ -30,9 +55,12 @@ export default function Home() {
   const [blockThirdParty, setBlockThirdParty] = useState(false);
   const [disableScripts, setDisableScripts] = useState(false);
   const [accessibilityMode, setAccessibilityMode] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [manuallyBlockedDomains, setManuallyBlockedDomains] = useState<Set<string>>(
     new Set()
   );
+
+  const { history, addEntry, removeEntry, clearHistory } = useAnalysisHistory();
 
   const {
     sessionId,
@@ -51,6 +79,65 @@ export default function Home() {
     blockedResourceTypes,
     previewImage,
   } = useBrowserPod(url);
+
+  const [displaySnapshot, setDisplaySnapshot] =
+    useState<AnalysisDisplaySnapshot | null>(null);
+
+  useEffect(() => {
+    setDisplaySnapshot(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || isLoading || displaySnapshot?.sessionId === sessionId) {
+      return;
+    }
+
+    const snapshotTimer = window.setTimeout(() => {
+      setDisplaySnapshot({
+        sessionId,
+        domains,
+        requests,
+        blockedRequests,
+        healthAlert,
+        mode,
+        title,
+        blockedCount,
+        blockedDomains: appliedBlockedDomains,
+        previewImage,
+        error,
+      });
+    }, 1200);
+
+    return () => window.clearTimeout(snapshotTimer);
+  }, [
+    appliedBlockedDomains,
+    blockedCount,
+    blockedRequests,
+    displaySnapshot?.sessionId,
+    domains,
+    error,
+    healthAlert,
+    isLoading,
+    mode,
+    previewImage,
+    requests,
+    sessionId,
+    title,
+  ]);
+
+  const displayedDomains = displaySnapshot?.domains ?? [];
+  const displayedRequests = displaySnapshot?.requests ?? [];
+  const displayedBlockedRequests = displaySnapshot?.blockedRequests ?? [];
+  const displayedBlockedCount = displaySnapshot?.blockedCount ?? 0;
+  const displayedHealthAlert = displaySnapshot?.healthAlert ?? false;
+  const displayedMode = displaySnapshot?.mode ?? mode;
+  const displayedTitle = displaySnapshot?.title ?? title;
+  const displayedPreviewImage = displaySnapshot?.previewImage ?? previewImage;
+  const displayedError = displaySnapshot?.error ?? error;
+  const displayedBlockedDomainSet = useMemo(
+    () => new Set(displaySnapshot?.blockedDomains ?? []),
+    [displaySnapshot]
+  );
 
   const desiredBlockedDomains = useMemo(() => {
     const next = new Set(manuallyBlockedDomains);
@@ -76,9 +163,35 @@ export default function Home() {
     totalObservedSize,
     trackerCount,
     reductionPercent,
-  } = useNetworkTracking(domains, appliedBlockedDomainSet, blockedRequests);
+  } = useNetworkTracking(
+    displayedDomains,
+    displayedBlockedDomainSet,
+    displayedBlockedRequests
+  );
 
-  const blockedSize = blockedRequests.reduce((sum, request) => sum + request.size, 0);
+  const blockedSize = displayedBlockedRequests.reduce((sum, request) => sum + request.size, 0);
+
+  const privacyScore = usePrivacyScore(displayedDomains, currentSize, displayedBlockedDomainSet);
+  const currentCarbonGrams = CarbonService.calculateCarbon(currentSize / 1024);
+  const trackerCountBefore = displayedDomains.filter((d) => d.isTracker).length;
+  const displayedSelectedDomain = selectedDomain
+    ? displayedDomains.find((domain) => domain.domain === selectedDomain.domain) ?? null
+    : displayedDomains[0] ?? null;
+
+  useEffect(() => {
+    if (displaySnapshot && url) {
+      addEntry({
+        url,
+        timestamp: Date.now(),
+        trackerCount,
+        domainCount: displayedDomains.length,
+        carbonGrams: currentCarbonGrams,
+        privacyScore: privacyScore.score,
+        dataTransferKB: Math.round(currentSize / 1024),
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displaySnapshot?.sessionId]);
 
   useEffect(() => {
     setManuallyBlockedDomains(new Set());
@@ -198,6 +311,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen gradient-bg">
+      <InsightAlerts
+        trackerCount={trackerCount}
+        domainCount={displayedDomains.length}
+        carbonGrams={currentCarbonGrams}
+        privacyScore={privacyScore.score}
+        healthAlert={displayedHealthAlert}
+        sessionActive={!!displaySnapshot}
+      />
+
+      <HistoryPanel
+        history={history}
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onLoadUrl={setUrl}
+        onRemoveEntry={removeEntry}
+        onClearHistory={clearHistory}
+      />
+
       {/* Hero + Command bar */}
       <Hero>
         <CommandBar
@@ -210,7 +341,7 @@ export default function Home() {
 
       {/* Dashboard */}
       <AnimatePresence mode="wait">
-        {sessionId ? (
+        {sessionId && displaySnapshot ? (
           <motion.main
             key="dashboard"
             initial={{ opacity: 0, y: 20 }}
@@ -220,7 +351,7 @@ export default function Home() {
             className="mx-auto max-w-7xl px-4 pb-16 sm:px-6"
           >
             {/* Health alert */}
-            {healthAlert && (
+            {displayedHealthAlert && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -230,26 +361,40 @@ export default function Home() {
               </motion.div>
             )}
 
+            {/* Headline Insight */}
+            {!isLoading && (
+              <div className="mb-6">
+                <HeadlineInsight
+                  trackerCount={trackerCount}
+                  domainCount={displayedDomains.length}
+                  carbonGrams={currentCarbonGrams}
+                  blockedCount={displayedBlockedCount}
+                  reductionPercent={reductionPercent}
+                  privacyScore={privacyScore.score}
+                />
+              </div>
+            )}
+
             {/* Live Metrics Row */}
             <section className="mb-6">
               <LiveMetrics
-                domains={domains.length}
+                domains={displayedDomains.length}
                 trackerCount={trackerCount}
                 currentSizeKB={Math.round(currentSize / 1024)}
                 totalSizeKB={Math.round(totalObservedSize / 1024)}
                 blockedSizeKB={Math.round(blockedSize / 1024)}
-                blockedCount={blockedCount}
+                blockedCount={displayedBlockedCount}
                 reductionPercent={reductionPercent}
               />
             </section>
 
             {/* Real-time Graph + Flow Viz */}
             <section className="mb-6 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-              <NetworkGraph requests={requests} />
+              <NetworkGraph requests={displayedRequests} />
               <FlowVisualization
                 url={url}
-                domains={domains}
-                blockedDomains={appliedBlockedDomainSet}
+                domains={displayedDomains}
+                blockedDomains={displayedBlockedDomainSet}
               />
             </section>
 
@@ -259,28 +404,41 @@ export default function Home() {
               <div className="space-y-6">
                 <SandboxView
                   url={url}
-                  title={title}
-                  mode={mode}
+                  title={displayedTitle}
+                  mode={displayedMode}
                   isLoading={isLoading}
-                  error={error}
-                  previewImage={previewImage}
+                  error={displayedError}
+                  previewImage={displayedPreviewImage}
+                />
+
+                <ComparisonPanel
+                  totalObservedSize={totalObservedSize}
+                  currentSize={currentSize}
+                  blockedSize={blockedSize}
+                  trackerCountBefore={trackerCountBefore}
+                  trackerCountAfter={trackerCount}
+                  blockedCount={displayedBlockedCount}
                 />
 
                 <DataFlowPanel
-                  domains={domains}
-                  requests={requests}
-                  selectedDomain={selectedDomain}
+                  domains={displayedDomains}
+                  requests={displayedRequests}
+                  selectedDomain={displayedSelectedDomain}
                   onSelectDomain={selectDomain}
-                  blockedDomains={appliedBlockedDomainSet}
+                  blockedDomains={displayedBlockedDomainSet}
                   onToggleDomainBlock={handleToggleDomainBlock}
                 />
+
+                <RequestTimeline requests={displayedRequests} />
               </div>
 
               {/* Right column */}
               <div className="space-y-6">
-                {selectedDomain ? (
+                <PrivacyScore score={privacyScore} />
+
+                {displayedSelectedDomain ? (
                   <AIExplanation
-                    domain={selectedDomain}
+                    domain={displayedSelectedDomain}
                     accessibilityMode={accessibilityMode}
                   />
                 ) : (
@@ -313,8 +471,8 @@ export default function Home() {
                   disableScripts={disableScripts}
                   isBlocking={isBlocking}
                   trackerCount={trackerCount}
-                  blockedCount={blockedCount}
-                  healthAlert={healthAlert}
+                  blockedCount={displayedBlockedCount}
+                  healthAlert={displayedHealthAlert}
                   onBlockTrackersChange={setBlockTrackers}
                   onBlockThirdPartyChange={setBlockThirdParty}
                   onDisableScriptsChange={setDisableScripts}
@@ -323,6 +481,25 @@ export default function Home() {
                   onReset={handleResetFilters}
                 />
               </div>
+            </div>
+          </motion.main>
+        ) : sessionId ? (
+          <motion.main
+            key="snapshot-loading"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="mx-auto max-w-7xl px-4 py-10 sm:px-6"
+          >
+            <div className="glass-panel mx-auto max-w-xl px-6 py-8 text-center">
+              <div className="mx-auto h-8 w-8 rounded-full border-2 border-purple-500/30 border-t-purple-400 animate-spin" />
+              <p className="mt-4 text-sm font-medium text-slate-300">
+                Preparing a stable analysis snapshot
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Live network data is still collected, but the dashboard will stay fixed once it opens.
+              </p>
             </div>
           </motion.main>
         ) : (
@@ -382,6 +559,14 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      {/* Floating History Button */}
+      <button
+        onClick={() => setIsHistoryOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-md px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/[0.1] hover:text-white transition-all shadow-lg"
+      >
+        📜 History
+      </button>
+
       {/* Footer */}
       <footer className="border-t border-white/[0.04] py-8 mt-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -394,9 +579,17 @@ export default function Home() {
               Privacy intelligence platform
             </span>
           </div>
-          <p className="text-xs text-slate-600">
-            Powered by BrowserPod · Real-time analysis
-          </p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsHistoryOpen(true)}
+              className="text-xs text-slate-400 hover:text-white transition-colors"
+            >
+              View History
+            </button>
+            <p className="text-xs text-slate-600">
+              Powered by BrowserPod · Real-time analysis
+            </p>
+          </div>
         </div>
       </footer>
     </div>

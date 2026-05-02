@@ -44,6 +44,8 @@ const initialState: BrowserPodState = {
 export function useBrowserPod(urlToLoad: string) {
   const [state, setState] = useState<BrowserPodState>(initialState);
   const pollRef = useRef<number | null>(null);
+  const lastDataRef = useRef<string>('');
+  const sessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -65,8 +67,11 @@ export function useBrowserPod(urlToLoad: string) {
     }
 
     let active = true;
+    lastDataRef.current = '';
 
     const syncNetworkState = async (sessionId: string) => {
+      if (!active) return;
+
       const response = await fetch(`/api/network?id=${sessionId}`, {
         cache: 'no-store',
       });
@@ -83,6 +88,20 @@ export function useBrowserPod(urlToLoad: string) {
 
       const data = await response.json();
       if (!active) return;
+
+      // Create a hash of the critical data to detect changes
+      const dataHash = JSON.stringify({
+        domainCount: data.aggregated?.length,
+        requestCount: data.requests?.length,
+        blockedCount: data.blockedRequests?.length,
+        stats: data.stats,
+      });
+
+      // Skip update if data hasn't changed
+      if (dataHash === lastDataRef.current) {
+        return;
+      }
+      lastDataRef.current = dataHash;
 
       setState((current) => {
         const nextSelectedDomain =
@@ -119,9 +138,17 @@ export function useBrowserPod(urlToLoad: string) {
       });
     };
 
-    let currentSessionId: string | null = null;
-
     const createSession = async () => {
+      const previousSessionId = sessionRef.current;
+      sessionRef.current = null;
+
+      if (previousSessionId) {
+        fetch(`/api/session?id=${previousSessionId}`, {
+          method: 'DELETE',
+          keepalive: true,
+        }).catch(console.error);
+      }
+
       setState({
         ...initialState,
         isLoading: true,
@@ -138,13 +165,9 @@ export function useBrowserPod(urlToLoad: string) {
         if (!response.ok) {
           throw new Error(data.error || 'Failed to create session');
         }
-        if (!active) {
-          // If already unmounted by the time session is created, delete it immediately
-          fetch(`/api/session?id=${data.sessionId}`, { method: 'DELETE' }).catch(console.error);
-          return;
-        }
+        if (!active) return;
 
-        currentSessionId = data.sessionId;
+        sessionRef.current = data.sessionId;
 
         setState((current) => ({
           ...current,
@@ -172,10 +195,10 @@ export function useBrowserPod(urlToLoad: string) {
               }));
             }
           });
-        }, 1200);
+        }, 2000); // Increased from 1200ms to 2000ms to reduce polling frequency
       } catch (error) {
-        console.error('Session creation error:', error);
         if (!active) return;
+        console.error('Session creation error:', error);
         setState({
           ...initialState,
           error:
@@ -193,9 +216,6 @@ export function useBrowserPod(urlToLoad: string) {
       if (pollRef.current) {
         window.clearInterval(pollRef.current);
         pollRef.current = null;
-      }
-      if (currentSessionId) {
-        fetch(`/api/session?id=${currentSessionId}`, { method: 'DELETE', keepalive: true }).catch(console.error);
       }
     };
   }, [urlToLoad]);

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import React from 'react';
 
 interface MetricCardProps {
   label: string;
@@ -12,45 +12,7 @@ interface MetricCardProps {
   index: number;
 }
 
-function AnimatedCounter({ value, suffix = '' }: { value: number; suffix?: string }) {
-  const [displayed, setDisplayed] = useState(0);
-  const targetRef = useRef(value);
-
-  useEffect(() => {
-    targetRef.current = value;
-    const start = displayed;
-    const diff = value - start;
-    if (diff === 0) return;
-
-    const duration = 800;
-    const startTime = performance.now();
-
-    const animate = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      // ease out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayed(Math.round(start + diff * eased));
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-
-    requestAnimationFrame(animate);
-  }, [value]);
-
-  return (
-    <span className="font-mono tabular-nums">
-      {displayed}{suffix}
-    </span>
-  );
-}
-
 function MetricCard({ label, value, detail, icon, color, index }: MetricCardProps) {
-  const numericValue = parseFloat(value);
-  const suffix = value.replace(/[\d.]/g, '').trim();
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -67,12 +29,8 @@ function MetricCard({ label, value, detail, icon, color, index }: MetricCardProp
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             {label}
           </p>
-          <p className="mt-3 text-3xl font-bold text-white">
-            {!isNaN(numericValue) ? (
-              <AnimatedCounter value={numericValue} suffix={` ${suffix}`} />
-            ) : (
-              value
-            )}
+          <p className="mt-3 text-3xl font-bold text-white font-mono tabular-nums">
+            {value}
           </p>
           <p className="mt-2 text-xs text-slate-500 leading-5">{detail}</p>
         </div>
@@ -95,7 +53,7 @@ interface LiveMetricsProps {
   reductionPercent: number;
 }
 
-export default function LiveMetrics({
+export default React.memo(function LiveMetrics({
   domains,
   trackerCount,
   currentSizeKB,
@@ -161,4 +119,4 @@ export default function LiveMetrics({
       ))}
     </section>
   );
-}
+});

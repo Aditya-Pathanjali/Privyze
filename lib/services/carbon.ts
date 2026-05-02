@@ -1,57 +1,65 @@
 // Carbon estimation service
-import { CARBON_PER_KB, CARBON_EQUIVALENTS, TREE_CO2_REMOVAL_G_PER_YEAR } from '@/lib/constants';
+import {
+  CARBON_PER_KB,
+  CARBON_EQUIVALENTS,
+  TREE_CO2_REMOVAL_G_PER_YEAR,
+} from '@/lib/constants';
+
+function clampFinite(value: number, min = 0): number {
+  return Number.isFinite(value) ? Math.max(min, value) : min;
+}
 
 export class CarbonService {
   // Average person's annual footprint (US: ~4,600 kg CO2e/year)
   private static readonly AVERAGE_ANNUAL_FOOTPRINT_KG = 4600;
-  private static readonly AVERAGE_DAILY_FOOTPRINT_G = 4600 * 1000 / 365; // ~12.6g/day
-  private static readonly AVERAGE_MINUTE_FOOTPRINT_G = 4600 * 1000 / (365 * 24 * 60); // ~0.87g/minute
+  private static readonly AVERAGE_DAILY_FOOTPRINT_G =
+    (CarbonService.AVERAGE_ANNUAL_FOOTPRINT_KG * 1000) / 365;
+  private static readonly AVERAGE_MINUTE_FOOTPRINT_G =
+    (CarbonService.AVERAGE_ANNUAL_FOOTPRINT_KG * 1000) / (365 * 24 * 60);
 
   /**
-   * Calculate estimated carbon footprint in grams of CO2
+   * Calculate estimated carbon footprint in grams of CO2.
    */
   static calculateCarbon(sizeKB: number): number {
-    return Math.round(sizeKB * CARBON_PER_KB * 1000) / 1000;
+    const safeSizeKB = clampFinite(sizeKB);
+    return Math.round(safeSizeKB * CARBON_PER_KB * 1000) / 1000;
   }
 
   /**
-   * Get percentage of average person's daily/minute footprint
+   * Get percentage of average person's daily/minute footprint.
    */
-  static getFootprintPercentage(carbonGrams: number, period: 'daily' | 'minute' = 'minute'): string {
-    let averageFootprint: number;
-    
-    switch (period) {
-      case 'daily':
-        averageFootprint = this.AVERAGE_DAILY_FOOTPRINT_G;
-        break;
-      case 'minute':
-      default:
-        averageFootprint = this.AVERAGE_MINUTE_FOOTPRINT_G;
-        break;
-    }
+  static getFootprintPercentage(
+    carbonGrams: number,
+    period: 'daily' | 'minute' = 'minute'
+  ): string {
+    const averageFootprint =
+      period === 'daily'
+        ? this.AVERAGE_DAILY_FOOTPRINT_G
+        : this.AVERAGE_MINUTE_FOOTPRINT_G;
+    const percentage = (clampFinite(carbonGrams) / averageFootprint) * 100;
 
-    const percentage = (carbonGrams / averageFootprint) * 100;
-    return percentage < 0.01 
+    return percentage < 0.01
       ? `<0.01% of average person's ${period} footprint`
       : `${percentage.toFixed(3)}% of average person's ${period} footprint`;
   }
 
   /**
-   * Get human-readable equivalent of carbon footprint
+   * Get human-readable equivalent of carbon footprint.
    */
   static getEquivalent(carbonGrams: number): string {
+    const safeCarbon = clampFinite(carbonGrams);
     const ranges = Object.keys(CARBON_EQUIVALENTS)
       .map(Number)
       .sort((a, b) => a - b);
 
     for (const range of ranges) {
-      if (carbonGrams <= range) {
+      if (safeCarbon <= range) {
         return CARBON_EQUIVALENTS[range];
       }
     }
 
-    const lastRange = ranges[ranges.length - 1];
-    const multiplier = Math.ceil(carbonGrams / lastRange);
+    const lastRange = ranges[ranges.length - 1] || 1;
+    const multiplier = Math.ceil(safeCarbon / lastRange);
     return `equivalent to ${multiplier}x driving 5km`;
   }
 
@@ -59,53 +67,61 @@ export class CarbonService {
    * Convert carbon grams into years for one tree to remove.
    */
   static getTreeRemovalYears(carbonGrams: number): number {
-    return Math.max(0, carbonGrams / TREE_CO2_REMOVAL_G_PER_YEAR);
+    return clampFinite(carbonGrams) / TREE_CO2_REMOVAL_G_PER_YEAR;
   }
 
   /**
    * Format tree removal time for display.
    */
   static formatTreeRemovalTime(years: number): string {
-    if (years < 0.02) {
-      const minutes = Math.round(years * 365 * 24 * 60);
+    const safeYears = clampFinite(years);
+
+    if (safeYears < 0.02) {
+      const minutes = Math.round(safeYears * 365 * 24 * 60);
       return `${minutes} minute${minutes === 1 ? '' : 's'} for one tree to absorb it`;
     }
 
-    if (years < 1) {
-      const months = Math.round(years * 12);
+    if (safeYears < 1) {
+      const months = Math.round(safeYears * 12);
       return `${months} month${months === 1 ? '' : 's'} for one tree to absorb it`;
     }
 
-    if (years < 10) {
-      return `${years.toFixed(1)} year${years === 1 ? '' : 's'} for one tree to absorb it`;
+    if (safeYears < 10) {
+      return `${safeYears.toFixed(1)} year${safeYears === 1 ? '' : 's'} for one tree to absorb it`;
     }
 
-    return `${years.toFixed(0)} years for one tree to absorb it`;
+    return `${safeYears.toFixed(0)} years for one tree to absorb it`;
   }
 
   /**
-   * Calculate reduction percentage
+   * Calculate reduction percentage.
    */
   static calculateReduction(before: number, after: number): number {
-    if (before === 0) return 0;
-    return Math.round(((before - after) / before) * 100);
+    const safeBefore = clampFinite(before);
+    const safeAfter = clampFinite(after);
+    if (safeBefore === 0) return 0;
+    return Math.max(
+      0,
+      Math.min(100, Math.round(((safeBefore - safeAfter) / safeBefore) * 100))
+    );
   }
 
   /**
-   * Format carbon value for display
+   * Format carbon value for display.
    */
   static formatCarbon(grams: number): string {
-    if (grams < 1) {
-      return `${(grams * 1000).toFixed(1)} mg CO₂`;
-    } else if (grams < 1000) {
-      return `${grams.toFixed(2)} g CO₂`;
-    } else {
-      return `${(grams / 1000).toFixed(2)} kg CO₂`;
+    const safeGrams = clampFinite(grams);
+    if (safeGrams < 1) {
+      return `${(safeGrams * 1000).toFixed(1)} mg CO2`;
     }
+    if (safeGrams < 1000) {
+      return `${safeGrams.toFixed(2)} g CO2`;
+    }
+    return `${(safeGrams / 1000).toFixed(2)} kg CO2`;
   }
 
   /**
-   * Get comprehensive display string with all comparisons
+   * Get comprehensive display string with all comparisons.
    */
   static getDisplayInfo(carbonGrams: number): {
     formatted: string;

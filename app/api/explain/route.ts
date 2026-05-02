@@ -13,20 +13,25 @@ export async function POST(req: NextRequest) {
       accessibilityMode,
     } = body;
 
-    if (!domain) {
+    if (typeof domain !== 'string' || !domain.trim()) {
       return NextResponse.json(
         { error: 'Domain is required' },
         { status: 400 }
       );
     }
 
+    const safeSizeKB =
+      typeof sizeKB === 'number' && Number.isFinite(sizeKB)
+        ? Math.max(0, sizeKB)
+        : 0;
+
     const result = await AIService.generateExplanation(
-      domain,
-      requestType || 'unknown',
-      sizeKB || 0,
-      isFirstParty || false,
-      classification || 'other',
-      accessibilityMode || false
+      domain.trim(),
+      typeof requestType === 'string' && requestType ? requestType : 'unknown',
+      safeSizeKB,
+      Boolean(isFirstParty),
+      typeof classification === 'string' && classification ? classification : 'other',
+      Boolean(accessibilityMode)
     );
 
     return NextResponse.json(result);

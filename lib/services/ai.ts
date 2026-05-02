@@ -11,6 +11,10 @@ function createClient() {
   return apiKey ? new GoogleGenerativeAI(apiKey) : null;
 }
 
+function getGeminiModelName() {
+  return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+}
+
 function humanClassification(classification: string) {
   switch (classification) {
     case 'ads':
@@ -95,7 +99,7 @@ Return exactly 2 sentences:
 Do not invent facts beyond the observed fields.`;
 
     try {
-      const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = client.getGenerativeModel({ model: getGeminiModelName() });
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: { maxOutputTokens: 140 }
