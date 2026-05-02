@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { motion } from 'framer-motion';
 
 interface ControlsPanelProps {
@@ -95,7 +96,7 @@ function ControlRow({ title, description, icon, checked, disabled, onChange, col
   );
 }
 
-export default function ControlsPanel({
+export default React.memo(function ControlsPanel({
   blockTrackers,
   blockThirdParty,
   disableScripts,
@@ -207,4 +208,4 @@ export default function ControlsPanel({
       </div>
     </motion.section>
   );
-}
+});

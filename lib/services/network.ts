@@ -4,6 +4,76 @@ import { KNOWN_TRACKERS, TRACKER_PATTERNS, HEALTH_KEYWORDS } from '@/lib/constan
 
 export class NetworkService {
   /**
+   * Normalize and validate a user-supplied URL before sandbox navigation.
+   */
+  static normalizeHttpUrl(input: string): { url?: string; error?: string } {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return { error: 'URL is required' };
+    }
+
+    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+    let parsed: URL;
+    try {
+      parsed = new URL(candidate);
+    } catch {
+      return { error: 'Invalid URL format' };
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { error: 'Only HTTP and HTTPS URLs can be analyzed' };
+    }
+
+    if (parsed.username || parsed.password) {
+      return { error: 'URLs with embedded credentials are not supported' };
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (this.isBlockedHostname(hostname)) {
+      return { error: 'Private, local, and internal hosts cannot be analyzed' };
+    }
+
+    parsed.hash = '';
+    return { url: parsed.toString() };
+  }
+
+  private static isBlockedHostname(hostname: string): boolean {
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname === 'metadata.google.internal'
+    ) {
+      return true;
+    }
+
+    if (hostname.includes(':')) {
+      const normalized = hostname.replace(/^\[|\]$/g, '');
+      return (
+        normalized === '::1' ||
+        normalized.startsWith('fc') ||
+        normalized.startsWith('fd') ||
+        normalized.startsWith('fe80:')
+      );
+    }
+
+    const octets = hostname.split('.').map((part) => Number(part));
+    if (octets.length === 4 && octets.every((part) => Number.isInteger(part))) {
+      const [a, b] = octets;
+      return (
+        a === 0 ||
+        a === 10 ||
+        a === 127 ||
+        a === 169 && b === 254 ||
+        a === 172 && b >= 16 && b <= 31 ||
+        a === 192 && b === 168
+      );
+    }
+
+    return false;
+  }
+
+  /**
    * Parse domain from URL
    */
   static parseDomain(url: string): string {

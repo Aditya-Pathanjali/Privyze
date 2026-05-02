@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useMemo } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CarbonService } from '@/lib/services/carbon';
@@ -50,7 +51,32 @@ function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: num
   return <span className="font-mono tabular-nums">{displayed.toFixed(decimals)}</span>;
 }
 
-export default function CarbonPanel({
+// Sustainability translation helpers
+function getPhoneCharges(carbonGrams: number): string {
+  // Average phone charge: ~8.22g CO2 (EPA estimate)
+  const charges = carbonGrams / 8.22;
+  if (charges < 0.01) return 'less than 0.01 phone charges';
+  if (charges < 1) return `${charges.toFixed(2)} phone charges`;
+  return `${charges.toFixed(1)} phone charges`;
+}
+
+function getDrivingDistance(carbonGrams: number): string {
+  // Average car: ~192g CO2/km
+  const meters = (carbonGrams / 192) * 1000;
+  if (meters < 1) return 'less than 1 meter of driving';
+  if (meters < 1000) return `${Math.round(meters)} meters of driving`;
+  return `${(meters / 1000).toFixed(1)} km of driving`;
+}
+
+function getLEDBulbMinutes(carbonGrams: number): string {
+  // 10W LED bulb: ~4.6g CO2/hour
+  const minutes = (carbonGrams / 4.6) * 60;
+  if (minutes < 1) return 'less than 1 minute of LED light';
+  if (minutes < 60) return `${Math.round(minutes)} min of LED light`;
+  return `${(minutes / 60).toFixed(1)} hours of LED light`;
+}
+
+export default React.memo(function CarbonPanel({
   currentSize,
   totalObservedSize,
   blockedSize,
@@ -59,8 +85,10 @@ export default function CarbonPanel({
   const afterCarbon = CarbonService.calculateCarbon(currentSize / 1024);
   const savedCarbon = Math.max(0, beforeCarbon - afterCarbon);
   const reduction = CarbonService.calculateReduction(beforeCarbon, afterCarbon);
-  const equivalent = CarbonService.getEquivalent(savedCarbon);
   const progressPercent = totalObservedSize > 0 ? Math.min(100, (currentSize / totalObservedSize) * 100) : 0;
+
+  // Use the "after" carbon (current state) for analogies
+  const displayCarbon = afterCarbon > 0 ? afterCarbon : beforeCarbon;
 
   return (
     <motion.section
@@ -97,16 +125,37 @@ export default function CarbonPanel({
             </span>
             <span className="text-lg font-medium text-emerald-400/70">g CO₂ saved</span>
           </motion.div>
-          {savedCarbon > 0 && (
-            <motion.p
-              className="mt-2 text-xs text-slate-500"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              {equivalent}
-            </motion.p>
-          )}
+
+          {/* Sustainability translations — always visible */}
+          <motion.div
+            className="mt-3 space-y-1.5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <SustainabilityBadge
+                icon="🔌"
+                text={`≈ ${getPhoneCharges(displayCarbon)}`}
+                delay={0.4}
+              />
+              <SustainabilityBadge
+                icon="🚗"
+                text={`≈ ${getDrivingDistance(displayCarbon)}`}
+                delay={0.5}
+              />
+              <SustainabilityBadge
+                icon="💡"
+                text={`≈ ${getLEDBulbMinutes(displayCarbon)}`}
+                delay={0.6}
+              />
+            </div>
+            {savedCarbon > 0 && (
+              <p className="text-[11px] text-emerald-400/60 mt-2">
+                🌿 You saved the equivalent of charging your phone {getPhoneCharges(savedCarbon)}
+              </p>
+            )}
+          </motion.div>
         </div>
 
         {/* Stats grid */}
@@ -185,5 +234,27 @@ export default function CarbonPanel({
         </div>
       </div>
     </motion.section>
+  );
+});
+
+function SustainabilityBadge({
+  icon,
+  text,
+  delay,
+}: {
+  icon: string;
+  text: string;
+  delay: number;
+}) {
+  return (
+    <motion.span
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay, duration: 0.3 }}
+      className="inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-1 text-[10px] font-medium text-slate-400"
+    >
+      <span>{icon}</span>
+      {text}
+    </motion.span>
   );
 }

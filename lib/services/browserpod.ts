@@ -64,45 +64,57 @@ export class BrowserPodService {
     sessionId: string,
     url: string
   ): Promise<{ sessionId: string; url: string; mode: 'live' }> {
-    const browser = await chromium.launch({
-      headless: true,
-      args: ['--disable-blink-features=AutomationControlled'],
-    });
+    let browser: Browser | null = null;
+    let context: BrowserContext | null = null;
+    let page: Page | null = null;
 
-    const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
-      viewport: { width: 1440, height: 900 },
-    });
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--disable-blink-features=AutomationControlled'],
+      });
 
-    const page = await context.newPage();
-    const entry: SessionEntry = {
-      browser,
-      context,
-      page,
-      state: {
-        sessionId,
-        url,
-        blockedDomains: new Set(),
-        blockedResourceTypes: new Set(),
-        requests: [],
-        blockedRequests: [],
-        aggregatedDomains: {},
-        totalRequests: 0,
-        totalSize: 0,
-        totalBlockedRequests: 0,
-        totalBlockedSize: 0,
-        createdAt: Date.now(),
-        mode: 'live',
-      },
-    };
+      context = await browser.newContext({
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+        viewport: { width: 1440, height: 900 },
+      });
 
-    sessions[sessionId] = entry;
-    await this.setupRequestCollection(entry);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await this.refreshLiveArtifacts(entry);
+      page = await context.newPage();
+      const entry: SessionEntry = {
+        browser,
+        context,
+        page,
+        state: {
+          sessionId,
+          url,
+          blockedDomains: new Set(),
+          blockedResourceTypes: new Set(),
+          requests: [],
+          blockedRequests: [],
+          aggregatedDomains: {},
+          totalRequests: 0,
+          totalSize: 0,
+          totalBlockedRequests: 0,
+          totalBlockedSize: 0,
+          createdAt: Date.now(),
+          mode: 'live',
+        },
+      };
 
-    return { sessionId, url, mode: 'live' };
+      sessions[sessionId] = entry;
+      await this.setupRequestCollection(entry);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await this.refreshLiveArtifacts(entry);
+
+      return { sessionId, url, mode: 'live' };
+    } catch (error) {
+      delete sessions[sessionId];
+      await page?.close().catch(() => undefined);
+      await context?.close().catch(() => undefined);
+      await browser?.close().catch(() => undefined);
+      throw error;
+    }
   }
 
   private static async createMockSession(
@@ -177,16 +189,16 @@ export class BrowserPodService {
           state.blockedRequests.shift();
         }
         
-        await route.abort();
+        await route.abort().catch(() => undefined);
         return;
       }
 
-      await route.continue();
+      await route.continue().catch(() => undefined);
     });
 
     page.on('requestfinished', async (request) => {
       try {
-        const response = await request.response();
+        const response = await request.response().catch(() => null);
         const url = request.url();
         const domain = NetworkService.parseDomain(url);
         const requestType = this.normalizeRequestType(request.resourceType());
@@ -197,7 +209,7 @@ export class BrowserPodService {
           return;
         }
 
-        const contentLength = await response?.headerValue('content-length');
+        const contentLength = await response?.headerValue('content-length').catch(() => null);
         const size = contentLength
           ? Number.parseInt(contentLength, 10)
           : this.estimateSize(request.resourceType(), url);
@@ -245,6 +257,13 @@ export class BrowserPodService {
           agg.types.push(requestObj.type);
         }
       } catch (error) {
+        if (
+          error instanceof Error &&
+          /closed|Target page|Target browser|Target context/i.test(error.message)
+        ) {
+          return;
+        }
+
         console.error('Failed to record request:', error);
       }
     });
@@ -253,8 +272,12 @@ export class BrowserPodService {
   private static async refreshLiveArtifacts(entry: SessionEntry) {
     if (!entry.page) return;
 
-    const pageTitle = await entry.page.title();
-    const pageContent = await entry.page.content();
+    const fallbackTitle = NetworkService.parseDomain(entry.state.url);
+    const pageTitle = await entry.page.title().catch(() => fallbackTitle);
+    const pageContent = await entry.page.content().catch((error) => {
+      console.warn('Page content unavailable for preview metadata:', error);
+      return entry.state.pageContent || entry.state.url;
+    });
     entry.state.title = pageTitle || NetworkService.parseDomain(entry.state.url);
     entry.state.pageContent = `${pageTitle}\n${pageContent}`.slice(0, 5000);
     entry.state.isHealthRelated = NetworkService.detectHealthPage(
@@ -290,6 +313,16 @@ export class BrowserPodService {
 
     const base = estimates[resourceType] ?? estimates.other;
     return base + Math.min(20000, url.length * 40);
+  }
+
+  private static resetCollectedState(entry: SessionEntry) {
+    entry.state.requests = [];
+    entry.state.blockedRequests = [];
+    entry.state.aggregatedDomains = {};
+    entry.state.totalRequests = 0;
+    entry.state.totalSize = 0;
+    entry.state.totalBlockedRequests = 0;
+    entry.state.totalBlockedSize = 0;
   }
 
   private static buildMockRequests(url: string): NetworkRequest[] {
@@ -431,18 +464,13 @@ export class BrowserPodService {
     }
 
     if (session.state.mode === 'mock') {
+      this.resetCollectedState(session);
       session.state.createdAt = Date.now();
       this.refreshMockState(sessionId);
       return;
     }
 
-    session.state.requests = [];
-    session.state.blockedRequests = [];
-    session.state.aggregatedDomains = {};
-    session.state.totalRequests = 0;
-    session.state.totalSize = 0;
-    session.state.totalBlockedRequests = 0;
-    session.state.totalBlockedSize = 0;
+    this.resetCollectedState(session);
 
     try {
       await session.page?.reload({ waitUntil: 'domcontentloaded' });
@@ -470,18 +498,13 @@ export class BrowserPodService {
     }
 
     if (session.state.mode === 'mock') {
+      this.resetCollectedState(session);
       session.state.createdAt = Date.now();
       this.refreshMockState(sessionId);
       return;
     }
 
-    session.state.requests = [];
-    session.state.blockedRequests = [];
-    session.state.aggregatedDomains = {};
-    session.state.totalRequests = 0;
-    session.state.totalSize = 0;
-    session.state.totalBlockedRequests = 0;
-    session.state.totalBlockedSize = 0;
+    this.resetCollectedState(session);
 
     try {
       await session.page?.reload({ waitUntil: 'domcontentloaded' });
