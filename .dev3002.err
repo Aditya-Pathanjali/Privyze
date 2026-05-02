@@ -1,0 +1,8 @@
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          38364
+- Dir:          C:\AI in the Box\data-guardian
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 38364 /F to stop it.
