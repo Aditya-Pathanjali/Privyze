@@ -12,6 +12,15 @@ export class NetworkService {
       return { error: 'URL is required' };
     }
 
+    if (
+      /^file:\/?/i.test(trimmed) ||
+      /^file\/{2,}/i.test(trimmed) ||
+      /^[a-z]:[\\/]/i.test(trimmed) ||
+      /^\\\\/.test(trimmed)
+    ) {
+      return { error: 'Local file paths cannot be analyzed. Enter a public HTTP or HTTPS website URL.' };
+    }
+
     const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
     let parsed: URL;
@@ -30,7 +39,7 @@ export class NetworkService {
     }
 
     const hostname = parsed.hostname.toLowerCase();
-    if (this.isBlockedHostname(hostname)) {
+    if (hostname === 'file' || this.isBlockedHostname(hostname)) {
       return { error: 'Private, local, and internal hosts cannot be analyzed' };
     }
 

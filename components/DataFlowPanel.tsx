@@ -14,7 +14,8 @@ interface DataFlowPanelProps {
 }
 
 function getColorForClassification(classification: string) {
-  return UI_COLORS[classification as keyof typeof UI_COLORS] || UI_COLORS.OTHER;
+  const key = classification.toUpperCase() as keyof typeof UI_COLORS;
+  return UI_COLORS[key] || UI_COLORS.OTHER;
 }
 
 function formatSize(bytes: number) {

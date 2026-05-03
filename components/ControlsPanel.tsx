@@ -43,6 +43,7 @@ function Toggle({
     <motion.button
       type="button"
       disabled={disabled}
+      aria-pressed={checked}
       onClick={() => onChange(!checked)}
       whileTap={{ scale: 0.95 }}
       className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 ${
@@ -174,6 +175,12 @@ export default React.memo(function ControlsPanel({
       </div>
 
       <div className="px-5 py-4 space-y-3">
+        {accessibilityMode && (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            Accessibility mode is active: larger text, calmer motion, and simpler AI explanations.
+          </div>
+        )}
+
         {/* Status card */}
         <div className="rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3.5">
           <div className="flex items-center gap-2">

@@ -315,3 +315,34 @@ body {
 .dot-pulse-delayed {
   animation: dotPulse 2s ease-in-out 0.5s infinite;
 }
+
+/* ========= ACCESSIBILITY MODE ========= */
+.accessibility-mode {
+  font-size: 112%;
+}
+
+.accessibility-mode p,
+.accessibility-mode button,
+.accessibility-mode input {
+  line-height: 1.65;
+}
+
+.accessibility-mode .text-\[10px\] {
+  font-size: 0.75rem;
+}
+
+.accessibility-mode .text-xs {
+  font-size: 0.875rem;
+}
+
+.accessibility-mode .text-sm {
+  font-size: 1rem;
+}
+
+.accessibility-mode *,
+.accessibility-mode *::before,
+.accessibility-mode *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
