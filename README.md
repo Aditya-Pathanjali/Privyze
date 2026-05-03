@@ -315,6 +315,11 @@ MIT License
 
 ---
 
+Team Members:
+Aditya Oruganti (Team leader)
+Jun Siong Lee
+Hamna Salman
+
 ## ❤️ Built for a better web
 
 Privyze turns invisible data flows into something you can see, understand, and control.
