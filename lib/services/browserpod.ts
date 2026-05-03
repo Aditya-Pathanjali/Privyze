@@ -78,13 +78,28 @@ export class BrowserPodService {
     url: string
   ): Promise<{ sessionId: string; url: string; mode: 'live' | 'mock' }> {
     try {
+      // Use longer timeout for production (30s instead of 12s)
+      const timeoutMs = process.env.NODE_ENV === 'production' ? 30000 : 12000;
       return await withTimeout(
         this.createLiveSession(sessionId, url),
-        12000,
-        'Live sandbox startup timed out'
+        timeoutMs,
+        `Live sandbox startup timed out after ${timeoutMs}ms`
       );
     } catch (error) {
-      console.error('Falling back to mock BrowserPod session:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('❌ CRITICAL: Live Playwright session failed:', {
+        url,
+        error: errorMsg,
+        NODE_ENV: process.env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      });
+      
+      // If in production and Playwright fails, throw instead of falling back to mock
+      if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_USE_SERVER_SANDBOX === 'true') {
+        throw new Error(`Cannot start live sandbox: ${errorMsg}. Ensure Playwright is installed and Docker/system dependencies are configured.`);
+      }
+      
+      console.warn('⚠️ Falling back to mock BrowserPod session (disable by setting env vars correctly)');
       return this.createMockSession(sessionId, url, error);
     }
   }
@@ -100,7 +115,7 @@ export class BrowserPodService {
     try {
       browser = await chromium.launch({
         headless: true,
-        timeout: 8000,
+        timeout: 15000,
         args: ['--disable-blink-features=AutomationControlled'],
       });
 
@@ -134,7 +149,7 @@ export class BrowserPodService {
 
       sessions[sessionId] = entry;
       await this.setupRequestCollection(entry);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
       void this.refreshLiveArtifacts(entry).catch((error) => {
         console.error('Failed to refresh live artifacts:', error);
       });

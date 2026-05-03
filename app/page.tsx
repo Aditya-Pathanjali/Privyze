@@ -8,6 +8,7 @@ import LiveMetrics from '@/components/LiveMetrics';
 import NetworkGraph from '@/components/NetworkGraph';
 import SandboxView from '@/components/SandboxView';
 import DataFlowPanel from '@/components/DataFlowPanel';
+import BrowserPodOnlyApp from '@/components/BrowserPodOnlyApp';
 import FlowVisualization from '@/components/FlowVisualization';
 import AIExplanation from '@/components/AIExplanation';
 import CarbonMeter from '@/components/CarbonMeter';
@@ -50,6 +51,14 @@ function setsMatch(left: Set<string>, right: Set<string>) {
 }
 
 export default function Home() {
+  const useBrowserPodOnlyInHostedMode =
+    process.env.NODE_ENV === 'production' &&
+    process.env.NEXT_PUBLIC_USE_SERVER_SANDBOX !== 'true';
+
+  if (useBrowserPodOnlyInHostedMode) {
+    return <BrowserPodOnlyApp />;
+  }
+
   const [url, setUrl] = useState('');
   const [isBlocking, setIsBlocking] = useState(false);
   const [blockTrackers, setBlockTrackers] = useState(false);
