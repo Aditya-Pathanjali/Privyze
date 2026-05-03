@@ -51,9 +51,12 @@ function setsMatch(left: Set<string>, right: Set<string>) {
 }
 
 export default function Home() {
+  // On Vercel (production), prefer BrowserPod if API key is available
+  // Only use server-side Playwright if explicitly enabled AND not on Vercel
   const useBrowserPodOnlyInHostedMode =
     process.env.NODE_ENV === 'production' &&
-    process.env.NEXT_PUBLIC_USE_SERVER_SANDBOX !== 'true';
+    (process.env.NEXT_PUBLIC_BROWSERPOD_API_KEY || 
+     process.env.NEXT_PUBLIC_USE_SERVER_SANDBOX !== 'true');
 
   if (useBrowserPodOnlyInHostedMode) {
     return <BrowserPodOnlyApp />;
