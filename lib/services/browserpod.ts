@@ -10,7 +10,13 @@ interface SessionEntry {
   seedRequests?: NetworkRequest[];
 }
 
-const sessions: Record<string, SessionEntry> = {};
+const globalSessionStore = globalThis as typeof globalThis & {
+  __privyzeBrowserPodSessions?: Record<string, SessionEntry>;
+};
+
+const sessions =
+  globalSessionStore.__privyzeBrowserPodSessions ??
+  (globalSessionStore.__privyzeBrowserPodSessions = {});
 
 const REQUEST_TYPE_OVERRIDES: Record<string, NetworkRequest['type']> = {
   document: 'document',
@@ -20,6 +26,25 @@ const REQUEST_TYPE_OVERRIDES: Record<string, NetworkRequest['type']> = {
   xhr: 'xhr',
   fetch: 'fetch',
 };
+
+function withTimeout<T>(
+  work: Promise<T>,
+  timeoutMs: number,
+  message: string
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    work
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
 
 function svgPreview(title: string, subtitle: string) {
   const svg = `
@@ -53,7 +78,11 @@ export class BrowserPodService {
     url: string
   ): Promise<{ sessionId: string; url: string; mode: 'live' | 'mock' }> {
     try {
-      return await this.createLiveSession(sessionId, url);
+      return await withTimeout(
+        this.createLiveSession(sessionId, url),
+        12000,
+        'Live sandbox startup timed out'
+      );
     } catch (error) {
       console.error('Falling back to mock BrowserPod session:', error);
       return this.createMockSession(sessionId, url, error);
@@ -71,6 +100,7 @@ export class BrowserPodService {
     try {
       browser = await chromium.launch({
         headless: true,
+        timeout: 8000,
         args: ['--disable-blink-features=AutomationControlled'],
       });
 
@@ -104,8 +134,10 @@ export class BrowserPodService {
 
       sessions[sessionId] = entry;
       await this.setupRequestCollection(entry);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await this.refreshLiveArtifacts(entry);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 });
+      void this.refreshLiveArtifacts(entry).catch((error) => {
+        console.error('Failed to refresh live artifacts:', error);
+      });
 
       return { sessionId, url, mode: 'live' };
     } catch (error) {
@@ -210,9 +242,11 @@ export class BrowserPodService {
         }
 
         const contentLength = await response?.headerValue('content-length').catch(() => null);
-        const size = contentLength
-          ? Number.parseInt(contentLength, 10)
-          : this.estimateSize(request.resourceType(), url);
+        const parsedSize = contentLength ? Number.parseInt(contentLength, 10) : 0;
+        const estimatedSize = this.estimateSize(request.resourceType(), url);
+        const size = Number.isFinite(parsedSize) && parsedSize > 0
+          ? parsedSize
+          : estimatedSize;
 
         const requestObj = {
           url,
@@ -473,8 +507,10 @@ export class BrowserPodService {
     this.resetCollectedState(session);
 
     try {
-      await session.page?.reload({ waitUntil: 'domcontentloaded' });
-      await this.refreshLiveArtifacts(session);
+      await session.page?.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+      void this.refreshLiveArtifacts(session).catch((error) => {
+        console.error('Failed to refresh live artifacts:', error);
+      });
     } catch (error) {
       console.error('Reload error:', error);
     }
@@ -507,8 +543,10 @@ export class BrowserPodService {
     this.resetCollectedState(session);
 
     try {
-      await session.page?.reload({ waitUntil: 'domcontentloaded' });
-      await this.refreshLiveArtifacts(session);
+      await session.page?.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+      void this.refreshLiveArtifacts(session).catch((error) => {
+        console.error('Failed to refresh live artifacts:', error);
+      });
     } catch (error) {
       console.error('Reload error:', error);
     }

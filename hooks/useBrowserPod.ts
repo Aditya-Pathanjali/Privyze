@@ -195,7 +195,7 @@ export function useBrowserPod(urlToLoad: string) {
               }));
             }
           });
-        }, 2000); // Increased from 1200ms to 2000ms to reduce polling frequency
+        }, 800);
       } catch (error) {
         if (!active) return;
         console.error('Session creation error:', error);

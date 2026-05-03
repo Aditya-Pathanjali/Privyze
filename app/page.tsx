@@ -18,12 +18,13 @@ import { usePrivacyScore } from '@/hooks/usePrivacyScore';
 import { useAnalysisHistory } from '@/hooks/useAnalysisHistory';
 import { CarbonService } from '@/lib/services/carbon';
 
-import InsightAlerts from '@/components/InsightAlerts';
+import { generateInsightAlerts } from '@/components/InsightAlerts';
 import HeadlineInsight from '@/components/HeadlineInsight';
 import ComparisonPanel from '@/components/ComparisonPanel';
 import PrivacyScore from '@/components/PrivacyScore';
 import RequestTimeline from '@/components/RequestTimeline';
 import HistoryPanel from '@/components/HistoryPanel';
+import NotificationsPanel from '@/components/NotificationsPanel';
 import { AggregatedDomain, NetworkRequest } from '@/lib/types';
 
 interface AnalysisDisplaySnapshot {
@@ -56,6 +57,7 @@ export default function Home() {
   const [disableScripts, setDisableScripts] = useState(false);
   const [accessibilityMode, setAccessibilityMode] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [manuallyBlockedDomains, setManuallyBlockedDomains] = useState<Set<string>>(
     new Set()
   );
@@ -106,7 +108,7 @@ export default function Home() {
         previewImage,
         error,
       });
-    }, 1200);
+    }, 350);
 
     return () => window.clearTimeout(snapshotTimer);
   }, [
@@ -158,6 +160,74 @@ export default function Home() {
   );
   const scriptsBlocked = blockedResourceTypes.includes('script');
 
+  useEffect(() => {
+    if (
+      !displaySnapshot ||
+      !sessionId ||
+      displaySnapshot.sessionId !== sessionId ||
+      isLoading ||
+      isBlocking
+    ) {
+      return;
+    }
+
+    const controlsAreApplied =
+      setsMatch(desiredBlockedDomains, appliedBlockedDomainSet) &&
+      disableScripts === scriptsBlocked;
+
+    if (!controlsAreApplied) {
+      return;
+    }
+
+    if (
+      displaySnapshot.domains === domains &&
+      displaySnapshot.requests === requests &&
+      displaySnapshot.blockedRequests === blockedRequests &&
+      displaySnapshot.blockedCount === blockedCount &&
+      displaySnapshot.blockedDomains === appliedBlockedDomains &&
+      displaySnapshot.previewImage === previewImage &&
+      displaySnapshot.error === error &&
+      displaySnapshot.healthAlert === healthAlert &&
+      displaySnapshot.mode === mode &&
+      displaySnapshot.title === title
+    ) {
+      return;
+    }
+
+    setDisplaySnapshot({
+      sessionId,
+      domains,
+      requests,
+      blockedRequests,
+      healthAlert,
+      mode,
+      title,
+      blockedCount,
+      blockedDomains: appliedBlockedDomains,
+      previewImage,
+      error,
+    });
+  }, [
+    appliedBlockedDomainSet,
+    appliedBlockedDomains,
+    blockedCount,
+    blockedRequests,
+    desiredBlockedDomains,
+    disableScripts,
+    displaySnapshot,
+    domains,
+    error,
+    healthAlert,
+    isBlocking,
+    isLoading,
+    mode,
+    previewImage,
+    requests,
+    scriptsBlocked,
+    sessionId,
+    title,
+  ]);
+
   const {
     currentSize,
     totalObservedSize,
@@ -177,6 +247,25 @@ export default function Home() {
   const displayedSelectedDomain = selectedDomain
     ? displayedDomains.find((domain) => domain.domain === selectedDomain.domain) ?? null
     : displayedDomains[0] ?? null;
+  const insightAlerts = useMemo(
+    () =>
+      generateInsightAlerts({
+        trackerCount,
+        domainCount: displayedDomains.length,
+        carbonGrams: currentCarbonGrams,
+        privacyScore: privacyScore.score,
+        healthAlert: displayedHealthAlert,
+        sessionActive: !!displaySnapshot,
+      }),
+    [
+      currentCarbonGrams,
+      displaySnapshot,
+      displayedDomains.length,
+      displayedHealthAlert,
+      privacyScore.score,
+      trackerCount,
+    ]
+  );
 
   useEffect(() => {
     if (displaySnapshot && url) {
@@ -310,16 +399,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen gradient-bg">
-      <InsightAlerts
-        trackerCount={trackerCount}
-        domainCount={displayedDomains.length}
-        carbonGrams={currentCarbonGrams}
-        privacyScore={privacyScore.score}
-        healthAlert={displayedHealthAlert}
-        sessionActive={!!displaySnapshot}
-      />
-
+    <div className={`min-h-screen gradient-bg ${accessibilityMode ? 'accessibility-mode' : ''}`}>
       <HistoryPanel
         history={history}
         isOpen={isHistoryOpen}
@@ -327,6 +407,12 @@ export default function Home() {
         onLoadUrl={setUrl}
         onRemoveEntry={removeEntry}
         onClearHistory={clearHistory}
+      />
+
+      <NotificationsPanel
+        alerts={insightAlerts}
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
       />
 
       {/* Hero + Command bar */}
@@ -559,13 +645,27 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Floating History Button */}
-      <button
-        onClick={() => setIsHistoryOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-md px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/[0.1] hover:text-white transition-all shadow-lg"
-      >
-        📜 History
-      </button>
+      {/* Floating Utility Buttons */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 sm:flex-row">
+        <button
+          onClick={() => setIsNotificationsOpen(true)}
+          className="relative flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-300 shadow-lg backdrop-blur-md transition-all hover:bg-white/[0.1] hover:text-white"
+        >
+          Notifications
+          {insightAlerts.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {insightAlerts.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setIsHistoryOpen(true)}
+          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-300 shadow-lg backdrop-blur-md transition-all hover:bg-white/[0.1] hover:text-white"
+        >
+          History
+        </button>
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-white/[0.04] py-8 mt-8">

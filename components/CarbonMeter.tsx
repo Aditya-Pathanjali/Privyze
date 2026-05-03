@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CarbonService } from '@/lib/services/carbon';
 
@@ -12,9 +11,10 @@ interface CarbonPanelProps {
 }
 
 function formatTransfer(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  const safeBytes = Number.isFinite(bytes) ? Math.max(0, bytes) : 0;
+  if (safeBytes < 1024) return `${safeBytes} B`;
+  if (safeBytes < 1024 * 1024) return `${(safeBytes / 1024).toFixed(0)} KB`;
+  return `${(safeBytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: number }) {
@@ -22,38 +22,81 @@ function AnimatedNumber({ value, decimals = 2 }: { value: number; decimals?: num
   const prevRef = useRef(0);
 
   useEffect(() => {
+    const safeValue = Number.isFinite(value) ? value : 0;
     const start = prevRef.current;
-    const diff = value - start;
+    const diff = safeValue - start;
     if (Math.abs(diff) < 0.001) {
-      setDisplayed(value);
-      prevRef.current = value;
+      setDisplayed(safeValue);
+      prevRef.current = safeValue;
       return;
     }
-    const duration = 600;
+
+    const duration = 650;
     const startTime = performance.now();
+    let frame = 0;
 
     const animate = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+      const progress = Math.min((now - startTime) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       const current = start + diff * eased;
       setDisplayed(current);
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        frame = requestAnimationFrame(animate);
       } else {
-        prevRef.current = value;
+        prevRef.current = safeValue;
       }
     };
 
-    requestAnimationFrame(animate);
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
   }, [value]);
 
   return <span className="font-mono tabular-nums">{displayed.toFixed(decimals)}</span>;
 }
 
-// Sustainability translation helpers
+function AnimatedTransferValue({ bytes }: { bytes: number }) {
+  const safeBytes = Number.isFinite(bytes) ? Math.max(0, bytes) : 0;
+  if (safeBytes < 1024) {
+    return (
+      <>
+        <AnimatedNumber value={safeBytes} decimals={0} /> B
+      </>
+    );
+  }
+  if (safeBytes < 1024 * 1024) {
+    return (
+      <>
+        <AnimatedNumber value={safeBytes / 1024} decimals={0} /> KB
+      </>
+    );
+  }
+  return (
+    <>
+      <AnimatedNumber value={safeBytes / (1024 * 1024)} decimals={2} /> MB
+    </>
+  );
+}
+
+function AnimatedCarbonValue({
+  grams,
+  className = '',
+}: {
+  grams: number;
+  className?: string;
+}) {
+  const safeGrams = Number.isFinite(grams) ? Math.max(0, grams) : 0;
+  const useMilligrams = safeGrams < 1;
+  const displayValue = useMilligrams ? safeGrams * 1000 : safeGrams;
+
+  return (
+    <span className={className}>
+      <AnimatedNumber value={displayValue} decimals={useMilligrams ? 1 : 2} />
+      <span className="ml-1">{useMilligrams ? 'mg CO2' : 'g CO2'}</span>
+    </span>
+  );
+}
+
 function getPhoneCharges(carbonGrams: number): string {
-  // Average phone charge: ~8.22g CO2 (EPA estimate)
   const charges = carbonGrams / 8.22;
   if (charges < 0.01) return 'less than 0.01 phone charges';
   if (charges < 1) return `${charges.toFixed(2)} phone charges`;
@@ -61,7 +104,6 @@ function getPhoneCharges(carbonGrams: number): string {
 }
 
 function getDrivingDistance(carbonGrams: number): string {
-  // Average car: ~192g CO2/km
   const meters = (carbonGrams / 192) * 1000;
   if (meters < 1) return 'less than 1 meter of driving';
   if (meters < 1000) return `${Math.round(meters)} meters of driving`;
@@ -69,7 +111,6 @@ function getDrivingDistance(carbonGrams: number): string {
 }
 
 function getLEDBulbMinutes(carbonGrams: number): string {
-  // 10W LED bulb: ~4.6g CO2/hour
   const minutes = (carbonGrams / 4.6) * 60;
   if (minutes < 1) return 'less than 1 minute of LED light';
   if (minutes < 60) return `${Math.round(minutes)} min of LED light`;
@@ -85,10 +126,32 @@ export default React.memo(function CarbonPanel({
   const afterCarbon = CarbonService.calculateCarbon(currentSize / 1024);
   const savedCarbon = Math.max(0, beforeCarbon - afterCarbon);
   const reduction = CarbonService.calculateReduction(beforeCarbon, afterCarbon);
-  const progressPercent = totalObservedSize > 0 ? Math.min(100, (currentSize / totalObservedSize) * 100) : 0;
-
-  // Use the "after" carbon (current state) for analogies
+  const blockedPercent = totalObservedSize > 0
+    ? Math.min(100, (blockedSize / totalObservedSize) * 100)
+    : 0;
+  const hasSavings = savedCarbon > 0.0005 || blockedSize > 0;
   const displayCarbon = afterCarbon > 0 ? afterCarbon : beforeCarbon;
+
+  const stats = [
+    {
+      label: 'Current transfer',
+      value: <AnimatedTransferValue bytes={currentSize} />,
+      icon: '📊',
+      color: 'text-slate-200',
+    },
+    {
+      label: 'Before filtering',
+      value: <AnimatedCarbonValue grams={beforeCarbon} />,
+      icon: '📈',
+      color: 'text-slate-200',
+    },
+    {
+      label: 'After filtering',
+      value: <AnimatedCarbonValue grams={afterCarbon} />,
+      icon: '📉',
+      color: 'text-emerald-400',
+    },
+  ];
 
   return (
     <motion.section
@@ -111,95 +174,75 @@ export default React.memo(function CarbonPanel({
         </div>
       </div>
 
-      <div className="px-5 py-5 space-y-5">
-        {/* Hero saved number */}
-        <div className="text-center py-3">
+      <div className="space-y-5 px-5 py-5">
+        <div className="py-3 text-center">
           <motion.div
-            className="inline-flex items-baseline gap-1"
-            initial={{ scale: 0.9, opacity: 0 }}
+            className="inline-flex flex-wrap items-baseline justify-center gap-2"
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.45 }}
           >
-            <span className="text-4xl font-bold text-emerald-400">
-              <AnimatedNumber value={savedCarbon} />
+            <AnimatedCarbonValue
+              grams={hasSavings ? savedCarbon : displayCarbon}
+              className={`text-4xl font-bold ${
+                hasSavings ? 'text-emerald-400' : 'text-purple-300'
+              }`}
+            />
+            <span
+              className={`text-lg font-medium ${
+                hasSavings ? 'text-emerald-400/70' : 'text-purple-300/70'
+              }`}
+            >
+              {hasSavings ? 'saved' : 'current impact'}
             </span>
-            <span className="text-lg font-medium text-emerald-400/70">g CO₂ saved</span>
           </motion.div>
 
-          {/* Sustainability translations — always visible */}
+          {!hasSavings && (
+            <motion.p
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 text-xs text-slate-500"
+            >
+              Turn on blocking controls to compare emissions before and after filtering.
+            </motion.p>
+          )}
+
           <motion.div
-            className="mt-3 space-y-1.5"
+            className="mt-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.2 }}
           >
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <SustainabilityBadge
-                icon="🔌"
-                text={`≈ ${getPhoneCharges(displayCarbon)}`}
-                delay={0.4}
-              />
-              <SustainabilityBadge
-                icon="🚗"
-                text={`≈ ${getDrivingDistance(displayCarbon)}`}
-                delay={0.5}
-              />
-              <SustainabilityBadge
-                icon="💡"
-                text={`≈ ${getLEDBulbMinutes(displayCarbon)}`}
-                delay={0.6}
-              />
+              <SustainabilityBadge icon="🔌" text={`≈ ${getPhoneCharges(displayCarbon)}`} delay={0.25} />
+              <SustainabilityBadge icon="🚗" text={`≈ ${getDrivingDistance(displayCarbon)}`} delay={0.32} />
+              <SustainabilityBadge icon="💡" text={`≈ ${getLEDBulbMinutes(displayCarbon)}`} delay={0.39} />
             </div>
-            {savedCarbon > 0 && (
-              <p className="text-[11px] text-emerald-400/60 mt-2">
-                🌿 You saved the equivalent of charging your phone {getPhoneCharges(savedCarbon)}
-              </p>
-            )}
           </motion.div>
         </div>
 
-        {/* Stats grid */}
         <div className="grid gap-2 sm:grid-cols-3">
-          {[
-            {
-              label: 'Current transfer',
-              value: formatTransfer(currentSize),
-              icon: '📊',
-              color: 'text-slate-200',
-            },
-            {
-              label: 'Before filtering',
-              value: CarbonService.formatCarbon(beforeCarbon),
-              icon: '📈',
-              color: 'text-slate-200',
-            },
-            {
-              label: 'After filtering',
-              value: CarbonService.formatCarbon(afterCarbon),
-              icon: '📉',
-              color: 'text-emerald-400',
-            },
-          ].map((item) => (
-            <div
+          {stats.map((item, index) => (
+            <motion.div
               key={item.label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.08, duration: 0.35 }}
               className="rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">
                 {item.icon} {item.label}
               </p>
-              <p className={`mt-1.5 text-sm font-semibold ${item.color}`}>
-                {item.value}
-              </p>
-            </div>
+              <p className={`mt-1.5 text-sm font-semibold ${item.color}`}>{item.value}</p>
+            </motion.div>
           ))}
         </div>
 
-        {/* Progress bar */}
         <div className="rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-300">Filtering impact</p>
-              <p className="text-xs text-slate-600 mt-0.5">
+              <p className="mt-0.5 text-xs text-slate-600">
                 Data transfer reduction from blocking
               </p>
             </div>
@@ -208,27 +251,24 @@ export default React.memo(function CarbonPanel({
                 <AnimatedNumber value={reduction} decimals={0} />
                 <span className="text-lg">%</span>
               </p>
-              <p className="text-[10px] text-slate-600 uppercase tracking-wider">reduction</p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-600">reduction</p>
             </div>
           </div>
 
-          {/* Bar */}
           <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
             <motion.div
-              className="h-full rounded-full progress-bar"
-              style={{
-                background: `linear-gradient(90deg, #10b981, #8b5cf6)`,
-              }}
+              className="progress-bar h-full rounded-full"
+              style={{ background: 'linear-gradient(90deg, #10b981, #8b5cf6)' }}
               initial={{ width: '0%' }}
-              animate={{ width: `${100 - progressPercent}%` }}
-              transition={{ duration: 1, ease: 'easeOut' }}
+              animate={{ width: `${blockedPercent}%` }}
+              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
             />
           </div>
 
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
             <span>Blocked: {formatTransfer(blockedSize)}</span>
             <span className="text-purple-400">
-              Emissions: {CarbonService.formatCarbon(afterCarbon)}
+              Emissions: <AnimatedCarbonValue grams={afterCarbon} />
             </span>
           </div>
         </div>
