@@ -1,208 +1,320 @@
-# 🛡️ Privyze — Real-Time Privacy + Carbon Tracker
+# 🛡️ Privyze — Real-Time Privacy Intelligence Platform
 
-An interactive web application that reveals who's collecting your data in real-time, explains their behavior with AI, and shows the carbon impact of tracking.
+**Privyze** is a next-generation web intelligence platform that reveals hidden data flows, explains them using AI, and quantifies their environmental impact — all in real time.
 
-**Perfect for**: Privacy-conscious users, hackathon demos, educational purposes
+> See what the web hides from you.
 
-## ✨ Key Features
+---
 
-### 🌐 Sandbox Browser
-- Load any website in an isolated Playwright session
-- See all network activity as it happens
-- Guaranteed safe execution in controlled environment
+## 🌍 Live Demo
 
-### 👁️ Live Data Tracking Panel
-- Real-time list of all domains contacted
-- Request counts and total data transferred per domain
-- Color-coded classification: trackers 🔴, analytics 🟠, ads 🟡, APIs 🔵
+👉 https://privyze.vercel.app/
+
+---
+
+## 🚀 What Makes Privyze Unique
+
+Privyze is not just a tracker blocker — it is a **full observability layer for the web**.
+
+It combines:
+
+* 🔍 Real-time network inspection
+* 🤖 AI-powered explanations
+* 🔒 Sandbox-based safe execution
+* 🌱 Carbon impact analysis
+* ♿ Accessibility-first design
+* 🏥 Healthcare-aware privacy protection
+
+---
+
+## ✨ Core Features
+
+### 🌐 Sandbox Browser Execution
+
+* Runs websites inside a secure isolated environment (BrowserPod + Playwright)
+* Prevents direct execution in the user’s browser
+* Captures full network activity safely
+
+---
+
+### 📡 Real-Time Network Monitoring
+
+* Live visualization of:
+
+  * Domains contacted
+  * Request counts
+  * Data transfer size
+* Categorization:
+
+  * 🔴 Trackers
+  * 🟠 Analytics
+  * 🟡 Ads
+  * 🔵 APIs
+
+---
 
 ### 🤖 AI-Powered Explanations
-- Select any domain to get an instant AI explanation
-- Claude API generates plain-English summaries
-- Streaming responses with typing effect
-- Healthcare mode: Simple language for accessibility
 
-### 🔒 One-Click Blocking
-- Block all trackers with a single click
-- Watch the page reload with tracking disabled
-- Real-time metrics update showing reduction
+* Click any domain → get instant explanation
+* Uses **Google Gemini API**
+* Converts technical tracking into plain English
+* Accessibility mode: simplified, ELI5 explanations
+
+---
+
+### 🔒 Smart Blocking Engine
+
+* One-click tracker blocking
+* Block:
+
+  * Trackers
+  * Third-party domains
+  * Scripts
+* Live reload with instant effect
+* Real-time before/after comparison
+
+---
 
 ### 🌱 Carbon Impact Meter
-- Visualize the carbon cost of data transfer
-- See before/after comparison
-- Percentage reduction clearly displayed
-- Example: "You reduced emissions by 70%"
 
-### ♿ Accessibility Features
-- Toggle accessibility mode for larger text
-- Simplified explanations (ELI5 style)
-- Screen-reader friendly UI
+* Calculates emissions caused by data transfer
+* Shows:
 
-### 🏥 Healthcare Privacy
-- Auto-detects health-related pages
-- Auto-enables tracker blocking
-- Shows privacy alert banner
+  * Total CO₂
+  * Reduction %
+  * Saved emissions
+* Makes privacy a **climate action**
 
-## 🚀 Getting Started
+---
 
-### Prerequisites
-- Node.js 18+
-- npm or yarn
+### 🏥 Healthcare Privacy Mode
 
-### Installation
+* Detects sensitive health-related content
+* Automatically:
 
-```bash
-# Clone and install
-cd data-guardian
-npm install
+  * Enables stricter blocking
+  * Activates accessibility mode
+* Prevents leakage of critical user data
 
-# Start dev server
-npm run dev
+---
+
+### ♿ Accessibility First
+
+* Screen-reader friendly
+* High contrast UI
+* Simplified explanations
+* Low cognitive load design
+
+---
+
+### 📊 Live Graph & Data Flow Visualization
+
+* Network graph showing connections between domains
+* Flow visualization of data movement
+* Real-time updates
+
+---
+
+### 🧠 AI Insight Panel
+
+* Explains:
+
+  * What the domain does
+  * Why it's tracking
+  * Risk level
+* Helps non-technical users understand privacy
+
+---
+
+### 🕘 History (New Feature)
+
+* Track previously analyzed websites
+* Quick navigation to past sessions
+* Compare behavior across sites
+
+---
+
+## 🧩 System Architecture
+
+```
+Frontend (Next.js + React)
+│
+├── Hero + Command Bar
+├── Sandbox View
+├── Network Graph
+├── Data Flow Panel
+├── AI Explanation Panel
+├── Carbon Meter
+└── Controls Panel
+
+Backend (Next.js API Routes)
+│
+├── /api/session   → BrowserPod session
+├── /api/network   → Network data
+├── /api/block     → Blocking engine
+└── /api/explain   → AI explanations
+
+Services Layer
+│
+├── BrowserPod (Playwright sandbox)
+├── Network Analysis Engine
+├── AI Service (Gemini)
+└── Carbon Estimator
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+---
 
-## 📊 How It Works
+## ⚙️ How It Works
 
-### Architecture
+1. User enters a URL
+2. Site loads in a sandboxed browser
+3. All network requests are intercepted
+4. Domains are classified and visualized
+5. User explores domains → AI explains them
+6. User applies filters (block trackers/scripts)
+7. Page reloads → metrics update in real-time
+8. Carbon impact is recalculated
 
-```
-┌─────────────────────────────────────────────────────┐
-│                   Frontend (React)                   │
-│  URLInput → SandboxView → DataFlowPanel → Controls  │
-└──────────────────┬──────────────────────────────────┘
-                   │
-        ┌──────────┼──────────┐
-        │          │          │
-   POST /session  GET /network  POST /block
-        │          │          │
-┌───────▼──────────▼──────────▼───────────────────────┐
-│            API Routes (Next.js)                      │
-└──────────────────┬─────────────────────────────────┘
-                   │
-     ┌─────────────┼─────────────┐
-     │             │             │
-   BrowserPod    Network        AI
-   Services      Analysis       Service
-   (Playwright)  Service        (Claude)
-```
+---
 
-### Demo Flow
+## 🧪 Demo URLs
 
-1. **Enter URL** → `https://www.example.com`
-2. **Sandbox loads** → BrowserPod spawns Playwright session
-3. **Network intercepts** → All requests logged in real-time
-4. **Data panel fills** → Shows trackers found
-5. **Select domain** → Claude explains its purpose
-6. **Click block** → Tracker domains blocked, page reloaded
-7. **Metrics update** → Carbon reduction shown visually
+Try these for best results:
 
-## 🏆 Demo URLs to Try
+* https://www.bbc.com → Heavy tracking
+* https://medium.com → Analytics-heavy
+* https://github.com → Mixed behavior
+* https://example.com → Minimal tracking
 
-- `https://www.bbc.com` — News site with many trackers
-- `https://www.github.com` — Developer site with mixed trackers
-- `https://www.example.com` — Minimal tracking
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+* Next.js 14 (App Router)
+* React 18
+* TypeScript
+* Tailwind CSS
+* Framer Motion (animations)
+
+### Backend
+
+* Next.js API Routes
+
+### Core Engines
+
+* BrowserPod (Sandbox execution)
+* Playwright (Network interception)
+
+### AI
+
+* Google Gemini API (explanations)
+
+### Data
+
+* In-memory session management
+
+---
 
 ## 📁 Project Structure
 
 ```
-data-guardian/
+privyze/
 ├── app/
-│   ├── page.tsx              # Main dashboard
+│   ├── page.tsx
 │   ├── api/
-│   │   ├── session/route.ts  # Create/manage sessions
-│   │   ├── network/route.ts  # Get network stats
-│   │   ├── block/route.ts    # Block/unblock domains
-│   │   └── explain/route.ts  # AI explanations
+│   │   ├── session/
+│   │   ├── network/
+│   │   ├── block/
+│   │   └── explain/
 │   └── layout.tsx
+│
 ├── components/
-│   ├── URLInput.tsx
+│   ├── Hero.tsx
+│   ├── CommandBar.tsx
 │   ├── SandboxView.tsx
+│   ├── NetworkGraph.tsx
 │   ├── DataFlowPanel.tsx
 │   ├── AIExplanation.tsx
 │   ├── CarbonMeter.tsx
 │   └── ControlsPanel.tsx
+│
 ├── hooks/
 │   ├── useBrowserPod.ts
 │   └── useNetworkTracking.ts
+│
 ├── lib/
-│   ├── types.ts
-│   ├── constants.ts
-│   └── services/
-│       ├── browserpod.ts
-│       ├── network.ts
-│       ├── ai.ts
-│       └── carbon.ts
-└── package.json
+│   ├── services/
+│   │   ├── browserpod.ts
+│   │   ├── network.ts
+│   │   ├── ai.ts
+│   │   └── carbon.ts
+│   └── types.ts
+│
+└── public/
 ```
-
-## 🧪 Testing the App
-
-### Test Case 1: Basic Tracking Detection
-```
-1. Open app at http://localhost:3000
-2. Enter: https://www.bbc.com
-3. Wait 5-10 seconds for data to load
-4. Observe data panel filling with domains
-5. Look for red dots (trackers) in the list
-```
-
-### Test Case 2: AI Explanations
-```
-1. After data loads, click on any domain
-2. Right panel shows "What's This?" section
-3. Watch as Claude AI streams explanation
-4. Read the plain-English description
-```
-
-### Test Case 3: Blocking Impact
-```
-1. Observe carbon meter showing total impact
-2. Click "Block [N] Trackers" button
-3. Page reloads inside sandbox
-4. Observe carbon meter decrease
-5. See success message with % reduction
-```
-
-## 🎨 UI Design
-
-- **Dark theme**: Slate-950 background with blue/purple accents
-- **Real-time updates**: Smooth animations for metric changes
-- **Color coding**: Red for trackers, orange for analytics, yellow for ads, blue for APIs
-
-## 🔧 Configuration
-
-### Tracker Detection
-
-Trackers are identified through:
-1. **Known domains list** (100+ trackers)
-2. **Pattern matching** (analytics, ads, tracking keywords)
-3. **Request type heuristics** (fetch/xhr from non-API domains)
-
-### Carbon Calculation
-
-```
-CO₂ = Data Transfer (KB) × 0.0002 g CO₂/KB
-```
-
-Based on average data center energy consumption.
-
-## 📚 Tech Stack
-
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Sandbox**: Playwright + BrowserPod
-- **AI**: Claude Haiku API for streaming explanations
-- **State Management**: In-memory sessions
-
-## 🎓 For Hackathon Judges
-
-✅ **Creativity**: Unique combination of privacy + AI + carbon impact  
-✅ **Technical Depth**: BrowserPod sandbox, Playwright interception, Claude streaming  
-✅ **Impact**: Relevant to any internet user  
-✅ **UX**: 3-second onboarding, clean dark interface, real-time feedback  
 
 ---
 
-**Built with ❤️ + 🌱 for privacy-conscious internet users**
+## ⚙️ Environment Setup
 
+Create `.env.local`:
+
+```env
+BROWSERPOD_API_KEY=your_key
+GEMINI_API_KEY=your_key
+NEXT_PUBLIC_API_URL=https://privyze.vercel.app
+```
+
+---
+
+## 🚀 Getting Started
+
+```bash
+git clone https://github.com/Aditya-Pathanjali/Privyze.git
+cd Privyze
+npm install
+npm run dev
+```
+
+Open:
+👉 http://localhost:3000
+
+---
+
+## 📊 Carbon Calculation Model
+
+```
+CO₂ (g) = Data Transfer (KB) × 0.0002
+```
+
+Based on average data center energy usage.
+
+---
+
+## 🔮 Future Roadmap
+
+* 🔐 Browser extension version
+* 📱 Mobile app
+* 📊 Advanced analytics dashboard
+* 🧠 Smarter AI risk scoring
+* 🔄 Session comparison engine
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome. For major changes, open an issue first.
+
+---
+
+## 📜 License
+
+MIT License
+
+---
+
+## ❤️ Built for a better web
+
+Privyze turns invisible data flows into something you can see, understand, and control.
