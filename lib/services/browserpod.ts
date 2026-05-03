@@ -87,19 +87,17 @@ export class BrowserPodService {
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('❌ CRITICAL: Live Playwright session failed:', {
+      console.error('❌ Playwright session failed:', {
         url,
         error: errorMsg,
         NODE_ENV: process.env.NODE_ENV,
+        USE_SERVER_SANDBOX: process.env.NEXT_PUBLIC_USE_SERVER_SANDBOX,
         timestamp: new Date().toISOString(),
       });
       
-      // If in production and Playwright fails, throw instead of falling back to mock
-      if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_USE_SERVER_SANDBOX === 'true') {
-        throw new Error(`Cannot start live sandbox: ${errorMsg}. Ensure Playwright is installed and Docker/system dependencies are configured.`);
-      }
-      
-      console.warn('⚠️ Falling back to mock BrowserPod session (disable by setting env vars correctly)');
+      // Always fall back to mock gracefully instead of throwing
+      // On Vercel, Playwright may not be available; use mock data as fallback
+      console.warn('⚠️ Falling back to mock BrowserPod session. For live mode, deploy with Playwright support.');
       return this.createMockSession(sessionId, url, error);
     }
   }
