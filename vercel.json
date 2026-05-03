@@ -1,5 +1,4 @@
 {
-  "installCommand": "npm install",
   "buildCommand": "npm run build",
   "env": {
     "NEXT_PUBLIC_USE_SERVER_SANDBOX": true
